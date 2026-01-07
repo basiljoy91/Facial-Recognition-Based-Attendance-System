@@ -1,24 +1,30 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "./apiClient";
 
-function Admin() {
+function Admin({ auth }) {
   const [view, setView] = useState("add");
   
   // Add User state
   const [name, setName] = useState("");
   const [roll, setRoll] = useState("");
-  const [file, setFile] = useState(null);
+  const [password, setPassword] = useState("");
+  const [newUserId, setNewUserId] = useState(null);
+  const [enrollFile, setEnrollFile] = useState(null);
   const [msg, setMsg] = useState("");
   
   // Attendance state
   const [attendance, setAttendance] = useState([]);
 
   const fetchAttendance = async () => {
+    if (!auth?.token) return;
     try {
-      const res = await fetch("http://127.0.0.1:8000/attendance/list");
-      const data = await res.json();
+      const data = await apiFetch("/api/v1/attendance/logs?limit=100", {
+        method: "GET",
+        token: auth.token,
+      });
       setAttendance(data);
     } catch (err) {
-      console.error("Failed to fetch attendance");
+      console.error("Failed to fetch attendance", err);
       setAttendance([]);
     }
   };
@@ -29,43 +35,84 @@ function Admin() {
     }
   }, [view]);
 
-  const submit = async () => {
-    if (!name || !roll || !file) {
-      setMsg("Please fill all fields and select an image");
+  const submitUser = async () => {
+    if (!name || !roll || !password) {
+      setMsg("Please fill all fields");
       return;
     }
-
-    const formData = new FormData();
-    formData.append("name", name);
-    formData.append("roll_no", roll);
-    formData.append("file", file);
-
+    if (!auth?.token) {
+      setMsg("You must be logged in as admin");
+      return;
+    }
     try {
-      const res = await fetch("http://127.0.0.1:8000/add-user", {
+      const data = await apiFetch("/api/v1/users", {
         method: "POST",
-        body: formData
+        token: auth.token,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: name,
+          roll_no: roll,
+          password,
+          role: "STUDENT",
+        }),
       });
-
-      const data = await res.json();
-      
-      if (res.ok) {
-        setMsg(`✅ ${data.message || "User added successfully"}`);
-        setName("");
-        setRoll("");
-        setFile(null);
-      } else {
-        setMsg(`❌ ${data.detail || "Failed to add user"}`);
-      }
+      setMsg("✅ User created. Now upload a face image to enroll.");
+      setNewUserId(data.id);
+      setName("");
+      setRoll("");
+      setPassword("");
     } catch (error) {
-      setMsg(`❌ Error: ${error.message}`);
+      setMsg(`❌ ${error.message}`);
     }
   };
+
+  const enrollFace = async () => {
+    if (!newUserId) {
+      setMsg("Create a user first before enrolling face.");
+      return;
+    }
+    if (!enrollFile) {
+      setMsg("Select an image to enroll.");
+      return;
+    }
+    if (!auth?.token) {
+      setMsg("You must be logged in as admin");
+      return;
+    }
+    try {
+      const formData = new FormData();
+      formData.append("file", enrollFile);
+      const data = await apiFetch(`/api/v1/users/${newUserId}/enroll`, {
+        method: "POST",
+        token: auth.token,
+        body: formData,
+      });
+      setMsg(
+        `✅ Face enrolled (model: ${data.model_version}, liveness: ${data.liveness_score})`
+      );
+      setEnrollFile(null);
+    } catch (error) {
+      setMsg(`❌ ${error.message}`);
+    }
+  };
+
+  if (!auth?.token || auth.role !== "ADMIN") {
+    return (
+      <div>
+        <h3>Admin Panel</h3>
+        <p style={{ color: "red" }}>
+          Admin login required. Please login as <strong>admin</strong> in the
+          header.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
       <h3>Admin Panel</h3>
       
-      <button onClick={() => setView("add")}>Add User</button>
+      <button onClick={() => setView("add")}>Add & Enroll User</button>
       <button onClick={() => setView("records")}>View Attendance</button>
       
       <hr />
@@ -73,29 +120,47 @@ function Admin() {
       {view === "add" && (
         <div>
           <h4>Add New User</h4>
-          <input 
-            placeholder="Name" 
+          <input
+            placeholder="Full name"
             value={name}
-            onChange={e => setName(e.target.value)} 
+            onChange={(e) => setName(e.target.value)}
           />
           <br />
-          <input 
-            placeholder="Roll No" 
+          <input
+            placeholder="Roll No / Employee ID"
             value={roll}
-            onChange={e => setRoll(e.target.value)} 
+            onChange={(e) => setRoll(e.target.value)}
           />
           <br />
-          <input 
-            type="file" 
-            accept="image/*"
-            onChange={e => setFile(e.target.files[0])} 
+          <input
+            type="password"
+            placeholder="Initial password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
           <br />
-          <button onClick={submit}>Add User</button>
-          <p style={{ 
-            color: msg.startsWith("✅") ? "green" : "red",
-            fontWeight: "bold"
-          }}>
+          <button onClick={submitUser}>Create User</button>
+
+          {newUserId && (
+            <>
+              <hr />
+              <h4>Enroll Face for User ID: {newUserId}</h4>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setEnrollFile(e.target.files[0])}
+              />
+              <br />
+              <button onClick={enrollFace}>Upload & Enroll Face</button>
+            </>
+          )}
+
+          <p
+            style={{
+              color: msg.startsWith("✅") ? "green" : "red",
+              fontWeight: "bold",
+            }}
+          >
             {msg}
           </p>
         </div>
@@ -110,26 +175,32 @@ function Admin() {
           {attendance.length === 0 ? (
             <p>No attendance records found</p>
           ) : (
-            <table border="1" cellPadding="8" style={{ borderCollapse: "collapse" }}>
+            <table
+              border="1"
+              cellPadding="8"
+              style={{ borderCollapse: "collapse", fontSize: 14 }}
+            >
               <thead>
                 <tr>
-                  <th>Name</th>
+                  <th>User ID</th>
                   <th>Date</th>
-                  <th>Entry Time</th>
-                  <th>Exit Time</th>
-                  <th>Status</th>
+                  <th>Type</th>
+                  <th>Timestamp</th>
+                  <th>Confidence</th>
+                  <th>Liveness</th>
+                  <th>Manual</th>
                 </tr>
               </thead>
               <tbody>
                 {attendance.map((record) => (
                   <tr key={record.id}>
-                    <td>{record.name}</td>
+                    <td>{record.user_id}</td>
                     <td>{record.date}</td>
-                    <td>{record.entry_time || "-"}</td>
-                    <td>{record.exit_time || "-"}</td>
-                    <td>
-                      {record.exit_time ? "Completed" : "Present"}
-                    </td>
+                    <td>{record.type}</td>
+                    <td>{record.timestamp}</td>
+                    <td>{record.confidence}</td>
+                    <td>{record.liveness_score ?? "-"}</td>
+                    <td>{record.manual_override ? "Yes" : "No"}</td>
                   </tr>
                 ))}
               </tbody>
