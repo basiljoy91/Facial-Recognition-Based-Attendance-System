@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from pgvector.sqlalchemy import Vector
@@ -53,8 +53,8 @@ class User(Base):
     role = Column(String(16), nullable=False, default=RoleEnum.STUDENT.value)
     password_hash = Column(String(255), nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     embeddings = relationship("FaceEmbedding", back_populates="user", cascade="all,delete-orphan")
     attendance_logs = relationship("AttendanceLog", back_populates="user", cascade="all,delete-orphan")
@@ -70,7 +70,7 @@ class FaceEmbedding(Base):
     vector = Column(EmbeddingVector(settings.embedding_dim), nullable=False)
     encrypted_blob = Column(LargeBinary, nullable=False)
     liveness_score = Column(Integer, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="embeddings")
 
@@ -83,7 +83,7 @@ class AttendanceLog(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     date = Column(Date, nullable=False)
     type = Column(String(16), nullable=False)
-    timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
+    timestamp = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     confidence = Column(Integer, nullable=False)
     liveness_score = Column(Integer, nullable=True)
     manual_override = Column(Boolean, nullable=False, default=False)
@@ -101,7 +101,7 @@ class AuditLog(Base):
     entity = Column(String(64), nullable=False)
     entity_id = Column(String(64), nullable=True)
     details = Column(JSONB, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class ModelVersion(Base):
@@ -110,6 +110,6 @@ class ModelVersion(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(64), unique=True, nullable=False)
     description = Column(String(255), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     is_active = Column(Boolean, nullable=False, default=True)
 

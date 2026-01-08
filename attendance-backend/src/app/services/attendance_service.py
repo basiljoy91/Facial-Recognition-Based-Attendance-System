@@ -37,7 +37,12 @@ class AttendanceService:
         last_log = self.attendance_repo.get_last_log(user_id)
         if last_log:
             cooldown = timedelta(minutes=self.settings.duplicate_cooldown_minutes)
-            if now - last_log.timestamp < cooldown and not manual_override:
+            # Ensure both datetimes are timezone-aware for comparison
+            last_timestamp = last_log.timestamp
+            if last_timestamp.tzinfo is None:
+                # If database timestamp is naive, assume it's UTC
+                last_timestamp = last_timestamp.replace(tzinfo=timezone.utc)
+            if now - last_timestamp < cooldown and not manual_override:
                 raise DuplicateAttendance("Duplicate within cooldown window")
 
         attendance_date = date.today()
