@@ -53,3 +53,4 @@ npm run dev
 - Wait for PostgreSQL to be fully ready (healthcheck passes)
 - Check POSTGRES_* environment variables match in compose.yml
 
+

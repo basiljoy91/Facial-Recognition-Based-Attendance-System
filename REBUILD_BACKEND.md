@@ -27,3 +27,4 @@ docker compose -f compose.yml up --build
 - Liveness score is set to 100 by default for enrollments
 - No more "blurred_or_flat_surface" errors during enrollment
 
+
