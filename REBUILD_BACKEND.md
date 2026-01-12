@@ -28,3 +28,5 @@ docker compose -f compose.yml up --build
 - No more "blurred_or_flat_surface" errors during enrollment
 
 
+
+
