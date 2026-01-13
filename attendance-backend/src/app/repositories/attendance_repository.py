@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.models import AttendanceLog, AttendanceTypeEnum
 
 
-class AttendanceRepository:
+class AtendanceRepository:
     def __init__(self, db: Session):
         self.db = db
 
